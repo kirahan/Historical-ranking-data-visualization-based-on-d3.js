@@ -2,7 +2,7 @@
  * @author Jannchie
  * @email jannchie@gmail.com
  * @create date 2018-05-02 13:17:10
- * @modify date 2018-07-20 07:29:40
+ * @modify date 2018-07-21 09:53:45
  * @desc 可视化核心代码
  */
 import * as d3 from 'd3';
@@ -30,31 +30,49 @@ function draw(data) {
         }
     });
     var auto_sort = config.auto_sort;
-    if(auto_sort){
+    if (auto_sort) {
         var time = date.sort();
-    }else{
+    } else {
         var time = date;
     }
 
-    var use_custom_color = config.use_custom_color
+    var use_custom_color = config.use_custom_color;
+    var divide_by_type = config.divide_by_type;
     // 选择颜色
     function getClass(d) {
-        // TODO:不随机选色
+        // 不随机选色
         if (d.type != '' && d.type != undefined) {
             if (use_custom_color) {
+                if (use_type_info == false) {
+                    return d.name
+                }
                 return d.type;
             }
         }
+
         // 随机选色
         var r = 0;
-        for (let index = 0; index < d.name.length; index++) {
-            r = r + d.name.charCodeAt(index);
+        if (use_type_info) {
+            if (divide_by_type){
+                for (let index = 0; index < d.type.length; index++) {
+                    r = r + d.type.charCodeAt(index);
+                }
+            }else{
+                for (let index = 0; index < d.name.length; index++) {
+                    r = r + d.name.charCodeAt(index);
+                }
+            }
+        } else {
+            for (let index = 0; index < d.name.length; index++) {
+                r = r + d.name.charCodeAt(index);
+            }
         }
         r = r % 25;
         r = Math.round(r);
         return color[r];
     }
     var showMessage = config.showMessage;
+    var showRightDetail = config.showRightDetail;
     var dividing_line = config.dividing_line;
     var interval_time = config.interval_time;
     var text_y = config.text_y;
@@ -62,6 +80,8 @@ function draw(data) {
     var typeLabel = config.typeLabel;
     // 长度小于display_barInfo的bar将不显示barInfo
     var display_barInfo = config.display_barInfo;
+    //排序类型
+    var sort_type = config.descending_sort;
     // 显示类型
     var use_type_info = config.use_type_info;
     // 使用计数器
@@ -77,6 +97,7 @@ function draw(data) {
     var dateLabel_y = config.dateLabel_y;
     var item_x = config.item_x;
     var max_number = config.max_number;
+    var Xviewvalue = config.xScale;
     const margin = {
         left: left_margin,
         right: right_margin,
@@ -98,6 +119,7 @@ function draw(data) {
 
     const xValue = d => Number(d.value);
     const yValue = d => d.name;
+    const tDetail = d => d.detail;
 
     const g = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -150,9 +172,21 @@ function draw(data) {
         });
         var tempSort = []
 
-        var currentSort = currentData.sort(function (a, b) {
-            return Number(b.value) - Number(a.value);
-        });
+        //sort type  change by kira
+
+        var currentSort
+        if(sort_type){
+            currentSort = currentData.sort(function (a, b) {
+                return Number(b.value) - Number(a.value);
+            });
+        }
+        else{
+            currentSort = currentData.sort(function (a, b) {
+                return Number(a.value) - Number(b.value);
+            });
+
+        }
+
         currentData = currentData.slice(0, max_number);
 
         var a = d3.transition("2")
@@ -182,14 +216,14 @@ function draw(data) {
                 .attr("class", "days")
                 .attr("x", 1300)
                 .attr("y", text_y);
-        }
-
-        // 显示榜首type
-        if (use_type_info == true) {
-            var top_type = g.insert("text")
-                .attr("class", "days")
-                .attr("x", 1300)
-                .attr("y", text_y);
+        } else {
+            // 显示榜首type
+            if (use_type_info == true) {
+                var top_type = g.insert("text")
+                    .attr("class", "days")
+                    .attr("x", 1300)
+                    .attr("y", text_y);
+            }
         }
     }
 
@@ -205,9 +239,13 @@ function draw(data) {
             .range([innerHeight, 0]);
         // x轴范围
         // xScale.domain([2 * d3.min(currentData, xValue) - d3.max(currentData, xValue), d3.max(currentData, xValue) + 100]).range([0, innerWidth]);
-        xScale.domain([0, d3.max(currentData, xValue) + 100]).range([0, innerWidth]);
+        xScale.domain([0, d3.max(currentData, xValue) + 100]).range([0, innerWidth*Xviewvalue]);
 
-        dateLabel.text(currentdate);
+        // 日期格式 仅仅显示月份
+        dateLabel.text(function () {
+            var format = String(currentdate).split('-')[0] + '-' + String(currentdate).split('-')[1];
+            return format
+        });
 
         xAxisG.transition(g).duration(3000 * interval_time).ease(d3.easeLinear).call(xAxis);
         yAxisG.transition(g).duration(3000 * interval_time).ease(d3.easeLinear).call(yAxis);
@@ -218,7 +256,96 @@ function draw(data) {
             .data(currentData, function (d) {
                 return d.name;
             });
+        var nameformatUP = config.nameformatUP
+        var resultformatUPFlag = config.resultformatUPFlag
+        var rubikTimeFormat = function (time) {
+            time = Number(time)
+            if(time>0){
+                if(time<6000){
+                    var secPart = Math.floor((time%6000)/100)
+                    var deciPart = time%100
+                    if(secPart==0){
+                        secPart = '0'
+                    }
+                    if(deciPart==0){
+                        deciPart = '00'
+                    }
+                    else if(deciPart<10){
+                        deciPart = '0' + String(deciPart)
+                    }
 
+                    return [secPart,deciPart]
+                }else{
+                    var minPart = String(Math.floor(time/6000))
+                    var secPart = Math.floor((time%6000)/100)
+                    var deciPart = time%100
+
+                    if(secPart==0){
+                        secPart = '00'
+                    }
+                    else if(secPart<10){
+                        secPart = '0' + String(secPart)
+                    }
+
+                    if(deciPart==0){
+                        deciPart = '00'
+                    }
+                    else if(deciPart<10){
+                        deciPart = '0' + String(deciPart)
+                    }
+                    return [minPart,secPart,deciPart]
+                }
+            }
+            else if(time==-1){
+                return 'DNF'
+            }else{
+                return 'Unknown'
+            }
+        }
+        var rubikTimeFormat2String = function (time) {
+            time = Number(time)
+            if(time>0){
+                if(time<6000){
+                    var secPart = Math.floor((time%6000)/100)
+                    var deciPart = time%100
+                    if(secPart==0){
+                        secPart = '0'
+                    }
+                    if(deciPart==0){
+                        deciPart = '00'
+                    }
+                    else if(deciPart<10){
+                        deciPart = '0' + String(deciPart)
+                    }
+
+                    return secPart + '.'+ deciPart
+                }else{
+                    var minPart = String(Math.floor(time/6000))
+                    var secPart = Math.floor((time%6000)/100)
+                    var deciPart = time%100
+
+                    if(secPart==0){
+                        secPart = '00'
+                    }
+                    else if(secPart<10){
+                        secPart = '0' + String(secPart)
+                    }
+
+                    if(deciPart==0){
+                        deciPart = '00'
+                    }
+                    else if(deciPart<10){
+                        deciPart = '0' + String(deciPart)
+                    }
+                    return minPart + ':'+ secPart + '.'+ deciPart
+                }
+            }
+            else if(time==-1){
+                return 'DNF'
+            }else{
+                return 'Unknown'
+            }
+        }
         if (showMessage) {
             // 榜首文字
             topLabel.data(currentData).text(function (d) {
@@ -228,7 +355,26 @@ function draw(data) {
                     counter.value = 1;
                 }
                 lastname = d.name
-                return d.name;
+                // 修改 名称格式
+                if(nameformatUP == 'Region'){
+                    if(d.name.split('(').length==2){
+                        return d.name.split('(')[1].split(')')[0]
+                    }else{
+                        return d.name
+                    }
+                }
+                else if(nameformatUP == 'English'){
+                    if(d.name.split('(').length==2){
+                        return d.name.split('(')[0]
+                    }else{
+                        return d.name
+                    }
+                }
+                else{
+                    return d.name
+                }
+
+
             });
             if (use_counter == true) {
                 // 榜首持续时间更新
@@ -247,11 +393,26 @@ function draw(data) {
             if (use_type_info == true) {
                 // 榜首type更新
                 top_type.data(currentData).text(function (d) {
-                    return d.type
+                    if(resultformatUPFlag){
+                        if(rubikTimeFormat(d.value)){
+                            var timetext = rubikTimeFormat(d.value)
+                            if(timetext.length==2){
+                                return timetext[0] + '.' + timetext[1]
+                            }
+                            else if(timetext.length == 3){
+                                return timetext[0] + ':' + timetext[1] + '.' + timetext[2]
+                            }
+                        }
+                        else {
+                            return d.value
+                        }
+                    }else{
+                        return d.value
+                    }
+
                 });
             }
         }
-
 
         var barEnter = bar.enter().insert("g", ".axis")
             .attr("class", "bar")
@@ -280,6 +441,7 @@ function draw(data) {
                 xScale(xValue(d)))
             .attr("fill-opacity", 1);
 
+
         barEnter.append("text").attr("y", 50).attr("fill-opacity", 0).transition("2").delay(500 * interval_time).duration(
                 2490 * interval_time)
             .attr(
@@ -294,24 +456,94 @@ function draw(data) {
                 return d.name;
             });
 
+        //detail
+        if(showRightDetail){
+            barEnter.append("text").attr("x",function () {
+                return config.detail_x_margin;
+            }).attr("y",50).attr("fill-opacity",0).transition("2").delay(500*interval_time).duration(2490*interval_time)
+                .attr(
+                    "fill-opacity", 1).attr("y", 0)
+                .attr("class", function (d) {
+                    return "detaillabel " + getClass(d)
+                })
+                .attr("y", 40)
+                .attr("text-anchor", "start")
+                .text(function (d) {
+                    var detail = d.detail.split('[')[1].split(']')[0].split('#')
+                    var detailString = '详情:\t'
+                    for(var value of detail){
+                        detailString += rubikTimeFormat2String(value) + '\t'
+                    }
+                    return detailString
+                });
+        }
+
+
+        var barRightResultFormatFlag = config.barRightResultFormatFlag
+        //右侧显示文字  初始化
         barEnter.append("text").attr("x",
-        function (d) {
-            if (enter_from_0) {
-                return 0;
-            } else {
-                return xScale(xValue(d));
-            }
-        }).attr("y", 50).attr("fill-opacity", 0).transition()
+                function (d) {
+                    if (enter_from_0) {
+                        return 0;
+                    } else {
+                        return xScale(xValue(d));
+                    }
+                }).attr("y", 50).attr("fill-opacity", 0).transition()
             .delay(500 * interval_time).duration(2490 * interval_time).tween(
                 "text",
                 function (d) {
                     var self = this;
-                    var i = d3.interpolate(self.textContent, Number(d.value)),
-                        prec = (Number(d.value) + "").split("."),
-                        round = (prec.length > 1) ? Math.pow(10, prec[1].length) : 1;
-                    return function (t) {
-                        self.textContent = d3.format(format)(Math.round(i(t) * round) / round);
-                    };
+                    var i
+                    var i_array = []
+
+                    if(barRightResultFormatFlag){
+                        var data = rubikTimeFormat(d.value)
+                        if(data.length==3){
+                            i_array[0] = d3.interpolate(0,data[0] );
+                            i_array[1] = d3.interpolate(0,data[1] );
+                            i_array[2] = d3.interpolate(0,data[2] );
+                            return function (t) {
+                                var secPart = Number(d3.format('.0f')(i_array[1](t)))
+                                var deciPart = Number(d3.format('.0f')(i_array[2](t)))
+                                if(secPart==0){
+                                    secPart = '00'
+                                }
+                                else if(secPart<10){
+                                    secPart = '0' + String(secPart)
+                                }
+
+                                if(deciPart==0){
+                                    deciPart = '00'
+                                }
+                                else if(deciPart<10){
+                                    deciPart = '0' + String(deciPart)
+                                }
+                                self.textContent = d3.format('.0f')(i_array[0](t)) + ':'+ String(secPart) + '.' +  String(deciPart);    //
+                            };
+                        }else if(data.length==2){
+                            i_array[0] = d3.interpolate(0,data[0] );
+                            i_array[1] = d3.interpolate(0,data[1] );
+                            return function (t) {
+                                var deciPart = Number(d3.format('.0f')(i_array[1](t)))
+
+                                if(deciPart==0){
+                                    deciPart = '00'
+                                }
+                                else if(deciPart<10){
+                                    deciPart = '0' + String(deciPart)
+                                }
+                                self.textContent = d3.format('.0f')(i_array[0](t)) + '.'+ String(deciPart);
+                            };
+                        }
+
+                    }
+                    else{
+                        console.warn('in update')
+                        i = d3.interpolate((self.textContent), Number(d.value))
+                        return function (t) {
+                            self.textContent = d3.format(format)(i(t));
+                        };
+                    }
                 }).attr(
                 "fill-opacity", 1).attr("y", 0)
             .attr("class", function (d) {
@@ -321,13 +553,13 @@ function draw(data) {
 
         // bar上文字
         barEnter.append("text").attr("x",
-        function (d) {
-            if (enter_from_0) {
-                return 0;
-            } else {
-                return xScale(xValue(d));
-            }
-        })
+                function (d) {
+                    if (enter_from_0) {
+                        return 0;
+                    } else {
+                        return xScale(xValue(d));
+                    }
+                })
             .attr("stroke", function (d) {
                 return $("." + getClass(d)).css("fill");
             })
@@ -380,16 +612,81 @@ function draw(data) {
             return "1px";
         })
 
+        //右侧显示文字  刷新
+        //
         barUpdate.select(".value").tween("text", function (d) {
             var self = this;
-            var i = d3.interpolate((self.textContent), Number(d.value)),
-                prec = (Number(d.value) + "").split("."),
-                round = (prec.length > 1) ? Math.pow(10, prec[1].length) : 1;
-            return function (t) {
-                self.textContent = d3.format(format)(Math.round(i(t) * round) / round);
-            };
+            var i
+            var i_array = []
+
+            if(barRightResultFormatFlag){
+                var data = rubikTimeFormat(d.value)
+                if(data.length==3){
+                    i_array[0] = d3.interpolate(self.textContent.split(':')[0],data[0] );
+                    i_array[1] = d3.interpolate(self.textContent.split(':')[1].split('.')[0],data[1] );
+                    i_array[2] = d3.interpolate(self.textContent.split(':')[1].split('.')[1],data[2] );
+                    return function (t) {
+                        var secPart = Number(d3.format('.0f')(i_array[1](t)))
+                        var deciPart = Number(d3.format('.0f')(i_array[2](t)))
+                        if(secPart==0){
+                            secPart = '00'
+                        }
+                        else if(secPart<10){
+                            secPart = '0' + String(secPart)
+                        }
+
+                        if(deciPart==0){
+                            deciPart = '00'
+                        }
+                        else if(deciPart<10){
+                            deciPart = '0' + String(deciPart)
+                        }
+                        self.textContent = d3.format('.0f')(i_array[0](t)) + ':'+ String(secPart) + '.' +  String(deciPart);    //
+                    };
+                }else if(data.length==2){
+                    if(self.textContent.split(':').length==2){
+                        i_array[0] = d3.interpolate(0,data[0] );
+                        i_array[1] = d3.interpolate(0,data[1] );
+                    }
+                    else{
+                        i_array[0] = d3.interpolate(self.textContent.split('.')[0],data[0] );
+                        i_array[1] = d3.interpolate(self.textContent.split('.')[1],data[1] );
+                    }
+                    return function (t) {
+                        var deciPart = Number(d3.format('.0f')(i_array[1](t)))
+
+                        if(deciPart==0){
+                            deciPart = '00'
+                        }
+                        else if(deciPart<10){
+                            deciPart = '0' + String(deciPart)
+                        }
+                        self.textContent = d3.format('.0f')(i_array[0](t)) + '.'+ String(deciPart);
+                    };
+                }
+
+            }
+            else{
+                console.warn('in update')
+                i = d3.interpolate((self.textContent), Number(d.value))
+                return function (t) {
+                    self.textContent = d3.format(format)(i(t));
+                };
+            }
+
         }).duration(2990 * interval_time).attr("x", d => xScale(xValue(d)) + 10)
 
+        //detail 文字刷新
+        if(showRightDetail){
+            barUpdate.select(".detaillabel").text(function (d) {
+                var detail = d.detail.split('[')[1].split(']')[0].split('#')
+                var detailString = '详情:\t'
+                for(var value of detail){
+                    detailString += rubikTimeFormat2String(value) + '\t'
+                }
+                return detailString
+            });
+        }
 
         var barExit = bar.exit().attr("fill-opacity", 1).transition().duration(2500 * interval_time)
 
@@ -398,7 +695,7 @@ function draw(data) {
                 if (temp < dividing_line) {
                     return "translate(0," + temp - 5 + ")";
                 }
-                return "translate(0," + 800 + ")";
+                return "translate(0," + 780 + ")";
             })
             .remove().attr("fill-opacity", 0);
         barExit.select("rect").attr("fill-opacity", 0)
@@ -406,10 +703,12 @@ function draw(data) {
         barExit.select(".barInfo").attr("fill-opacity", 0).attr("stroke-width", function (d) {
             return "0px";
         })
+        barExit.select(".barInfo2").attr("fill-opacity", 0).attr("stroke-width", function (d) {
+            return "0px";
+        })
         barExit.select(".label").attr("fill-opacity", 0)
 
     }
-
 
     function change() {
         var bar = g.selectAll(".bar")
